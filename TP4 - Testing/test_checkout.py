@@ -142,3 +142,48 @@ def test_el_talle_se_valida_antes_que_la_cantidad():
     problematico = item("buzo", talle="XXXL", cantidad=99)
 
     assert codigo_de_error(validar_item, problematico) == "TALLE_INVALIDO"
+
+
+# ---------------------------------------------------------------------------
+# R3 — Cantidad
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("cantidad", [1, 2, 5, 9, 10])
+def test_cantidad_entera_entre_1_y_10_es_valida(cantidad):
+    assert validar_item(item(cantidad=cantidad)) is None
+
+
+@pytest.mark.parametrize("cantidad", [0, -1, -10, 11, 100])
+def test_cantidad_entera_fuera_de_rango_es_invalida(cantidad):
+    assert codigo_de_error(validar_item, item(cantidad=cantidad)) == "CANTIDAD_INVALIDA"
+
+
+@pytest.mark.parametrize("cantidad", [2.5, 0.5, 10.5])
+def test_cantidad_no_entera_es_invalida(cantidad):
+    assert codigo_de_error(validar_item, item(cantidad=cantidad)) == "CANTIDAD_INVALIDA"
+
+
+@pytest.mark.parametrize("cantidad", ["3", None, True, float("nan")])
+def test_cantidad_que_no_es_un_numero_entero_es_invalida_y_no_otra_excepcion(cantidad):
+    assert codigo_de_error(validar_item, item(cantidad=cantidad)) == "CANTIDAD_INVALIDA"
+
+
+def test_diez_buzos_se_calculan_sin_error():
+    assert calcular_subtotal([item("buzo", cantidad=10)]) == Decimal("249999.00")
+
+
+def test_diez_remeras_se_calculan_sin_error():
+    assert calcular_subtotal([item("remera", cantidad=10)]) == Decimal("119995.00")
+
+
+def test_el_error_de_cantidad_se_propaga_desde_calcular_subtotal():
+    carrito = [item("buzo", cantidad=11)]
+
+    assert codigo_de_error(calcular_subtotal, carrito) == "CANTIDAD_INVALIDA"
+
+
+def test_se_informa_primero_el_item_con_error_de_cantidad_aunque_el_segundo_tambien_falle():
+    carrito = [item("buzo", cantidad=0), item("zapatillas")]
+
+    assert codigo_de_error(calcular_subtotal, carrito) == "CANTIDAD_INVALIDA"
