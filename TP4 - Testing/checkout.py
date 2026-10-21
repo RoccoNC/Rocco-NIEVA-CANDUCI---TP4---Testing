@@ -1,5 +1,5 @@
-import json
 from datetime import date
+from decimal import Decimal
 
 
 class CheckoutError(Exception):
@@ -10,55 +10,59 @@ class CheckoutError(Exception):
 
 
 CATALOGO = {
-    "buzo": 24999.90,
-    "remera": 11999.50,
-    "campera": 47999.99,
+    "buzo": Decimal("24999.90"),
+    "remera": Decimal("11999.50"),
+    "campera": Decimal("47999.99"),
 }
 
 TALLES = ["XS", "S", "M", "L", "XL", "XXL"]
 
 CUPONES = {
-    "EGRESADOS2026": {"tipo": "porcentaje", "valor": 0.15, "vence": date(2026, 11, 30)},
-    "BIENVENIDA": {"tipo": "fijo", "valor": 3000, "minimo": 20000},
-    "DEBUG100": {"tipo": "porcentaje", "valor": 1.0, "vence": date(2099, 12, 31)},
+    "EGRESADOS2026": {"tipo": "porcentaje", "valor": Decimal("0.15"), "vence": date(2026, 11, 30)},
+    "BIENVENIDA": {"tipo": "fijo", "valor": Decimal("3000"), "minimo": Decimal("20000")},
+    "DEBUG100": {"tipo": "porcentaje", "valor": Decimal("1.00"), "vence": date(2099, 12, 31)},
 }
 
 ENVIOS = {
-    "CABA": 2500,
-    "GBA": 4000,
-    "INTERIOR": 6500,
-    "RETIRO": 0,
+    "CABA": Decimal("2500"),
+    "GBA": Decimal("4000"),
+    "INTERIOR": Decimal("6500"),
+    "RETIRO": Decimal("0"),
 }
 
 
 def validar_item(item):
-    item["talle"] = item["talle"].upper()
+    producto = item["producto"]
+    if not isinstance(producto, str) or producto not in CATALOGO:
+        raise CheckoutError("PRODUCTO_INEXISTENTE", f"Producto inexistente: {producto!r}")
+
+    talle = item["talle"]
+    if not isinstance(talle, str):
+        raise CheckoutError("TALLE_INVALIDO", f"Talle inválido: {talle!r}")
+
+    item["talle"] = talle.strip().upper()
 
     if item["talle"] not in TALLES:
-        raise CheckoutError("TALLE_INVALIDO", f"Talle inválido: {item['talle']}")
+        raise CheckoutError("TALLE_INVALIDO", f"Talle inválido: {talle!r}")
 
     if not (1 <= item["cantidad"] < 10):
         raise CheckoutError("CANTIDAD_INVALIDA", "La cantidad debe estar entre 1 y 10")
 
 
 def calcular_subtotal(carrito):
-    subtotal = 0
+    subtotal = Decimal("0")
     for item in carrito:
         validar_item(item)
-        try:
-            precio = item.get("precio", CATALOGO[item["producto"]])
-        except:
-            continue
-        subtotal += precio * item["cantidad"]
+        subtotal += CATALOGO[item["producto"]] * item["cantidad"]
 
-    return round(subtotal, 2)
+    return subtotal
 
 
 def calcular_descuento(subtotal, cantidad_prendas, cupon=None, fecha=date.today()):
     descuento = 0
 
     if cantidad_prendas > 5:
-        descuento += subtotal * 0.10
+        descuento += subtotal * Decimal("0.10")
 
     if cupon != None:
         codigo = cupon.strip()
