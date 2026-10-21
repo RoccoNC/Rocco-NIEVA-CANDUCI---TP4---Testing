@@ -420,3 +420,85 @@ def test_descuento_por_cantidad_redondea_menos_de_medio_centavo_hacia_abajo():
     descuento = calcular_descuento(Decimal("100.04"), 5)
 
     assert descuento == Decimal("10.00")
+
+
+# ---------------------------------------------------------------------------
+# R6 — Cupones
+# ---------------------------------------------------------------------------
+
+
+def test_egresados2026_aplica_quince_por_ciento():
+    descuento = calcular_descuento(Decimal("100000.00"), 1, "EGRESADOS2026", date(2026, 10, 1))
+    assert descuento == Decimal("15000.00")
+
+
+def test_egresados2026_acepta_minusculas_y_espacios():
+    descuento = calcular_descuento(Decimal("100000.00"), 1, "  egresados2026  ", date(2026, 10, 1))
+    assert descuento == Decimal("15000.00")
+
+
+def test_egresados2026_es_valido_el_30_de_noviembre_inclusive():
+    descuento = calcular_descuento(Decimal("100000.00"), 1, "EGRESADOS2026", date(2026, 11, 30))
+    assert descuento == Decimal("15000.00")
+
+
+def test_egresados2026_esta_vencido_desde_el_1_de_diciembre():
+    assert codigo_de_error(
+        calcular_descuento, Decimal("100000.00"), 1, "EGRESADOS2026", date(2026, 12, 1)
+    ) == "CUPON_VENCIDO"
+
+
+def test_bienvenida_descuenta_3000_con_subtotal_exactamente_20000():
+    descuento = calcular_descuento(Decimal("20000.00"), 1, "BIENVENIDA", date(2026, 10, 1))
+    assert descuento == Decimal("3000.00")
+
+
+def test_bienvenida_acepta_minusculas_y_espacios():
+    descuento = calcular_descuento(Decimal("25000.00"), 1, "  bienvenida  ", date(2026, 10, 1))
+    assert descuento == Decimal("3000.00")
+
+
+def test_bienvenida_rechaza_subtotal_menor_a_20000():
+    assert codigo_de_error(
+        calcular_descuento, Decimal("19999.99"), 1, "BIENVENIDA", date(2026, 10, 1)
+    ) == "CUPON_MINIMO_NO_ALCANZADO"
+
+
+@pytest.mark.parametrize("cupon", [None, "", "   "])
+def test_cupon_ausente_o_vacio_equivale_a_no_usar_cupon(cupon):
+    descuento = calcular_descuento(Decimal("10000.00"), 1, cupon, date(2026, 10, 1))
+    assert descuento == Decimal("0.00")
+
+
+def test_debug100_no_es_un_cupon_valido():
+    assert codigo_de_error(
+        calcular_descuento, Decimal("100000.00"), 1, "DEBUG100", date(2026, 10, 1)
+    ) == "CUPON_INVALIDO"
+
+
+def test_codigo_de_cupon_desconocido_es_invalido():
+    assert codigo_de_error(
+        calcular_descuento, Decimal("100000.00"), 1, "NOEXISTE", date(2026, 10, 1)
+    ) == "CUPON_INVALIDO"
+
+
+def test_cupon_y_descuento_por_cantidad_no_se_acumulan_y_gana_el_mayor():
+    descuento = calcular_descuento(Decimal("100000.00"), 5, "EGRESADOS2026", date(2026, 10, 1))
+    assert descuento == Decimal("15000.00")
+
+
+def test_descuento_por_cantidad_gana_si_es_mayor_que_cupon_fijo():
+    descuento = calcular_descuento(Decimal("100000.00"), 5, "BIENVENIDA", date(2026, 10, 1))
+    assert descuento == Decimal("10000.00")
+
+
+def test_descuento_de_cupon_porcentual_usa_redondeo_comercial():
+    descuento = calcular_descuento(Decimal("11999.50"), 1, "EGRESADOS2026", date(2026, 10, 1))
+    assert descuento == Decimal("1799.93")
+
+
+def test_calcular_total_normaliza_cupon_y_aplica_el_mayor_descuento():
+    carrito = [item("buzo", cantidad=5)]
+    resultado = calcular_total(carrito, "CABA", "  egresados2026  ", date(2026, 10, 1))
+    assert resultado["descuento"] == Decimal("18749.93")
+
