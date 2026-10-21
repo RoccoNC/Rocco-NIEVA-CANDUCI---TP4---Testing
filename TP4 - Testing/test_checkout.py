@@ -614,3 +614,171 @@ def test_calcular_total_da_envio_gratis_si_luego_del_descuento_quedan_60000_o_ma
     assert resultado["descuento"] == Decimal("0.00")
     assert resultado["envio"] == Decimal("0")
 
+
+# ---------------------------------------------------------------------------
+# R7 — Dinero y redondeo
+# ---------------------------------------------------------------------------
+
+
+def test_calcular_envio_devuelve_decimal():
+    envio = calcular_envio(Decimal("10000.00"), "CABA")
+
+    assert isinstance(envio, Decimal)
+
+
+def test_envio_gratis_devuelve_decimal():
+    envio = calcular_envio(Decimal("60000.00"), "CABA")
+
+    assert isinstance(envio, Decimal)
+
+
+def test_calcular_total_devuelve_todos_los_importes_como_decimal():
+    carrito = [item("remera")]
+
+    resultado = calcular_total(
+        carrito,
+        "CABA",
+        "EGRESADOS2026",
+        date(2026, 10, 1),
+    )
+
+    assert isinstance(resultado["subtotal"], Decimal)
+    assert isinstance(resultado["descuento"], Decimal)
+    assert isinstance(resultado["envio"], Decimal)
+    assert isinstance(resultado["total"], Decimal)
+
+
+def test_descuento_porcentual_redondea_1799_925_a_1799_93():
+    descuento = calcular_descuento(
+        Decimal("11999.50"),
+        1,
+        "EGRESADOS2026",
+        date(2026, 10, 1),
+    )
+
+    assert descuento == Decimal("1799.93")
+
+
+# ---------------------------------------------------------------------------
+# R9 — Total
+# ---------------------------------------------------------------------------
+
+
+def test_total_es_subtotal_menos_descuento_mas_envio_sin_descuento():
+    carrito = [item("remera")]
+
+    resultado = calcular_total(carrito, "CABA")
+
+    assert resultado == {
+        "subtotal": Decimal("11999.50"),
+        "descuento": Decimal("0.00"),
+        "envio": Decimal("2500"),
+        "total": Decimal("14499.50"),
+    }
+
+
+def test_total_con_cupon_porcentual_calcula_todos_los_importes():
+    carrito = [item("remera")]
+
+    resultado = calcular_total(
+        carrito,
+        "CABA",
+        "EGRESADOS2026",
+        date(2026, 10, 1),
+    )
+
+    assert resultado == {
+        "subtotal": Decimal("11999.50"),
+        "descuento": Decimal("1799.93"),
+        "envio": Decimal("2500"),
+        "total": Decimal("12699.57"),
+    }
+
+
+def test_total_con_descuento_por_cantidad_y_envio_gratis():
+    carrito = [item("buzo", cantidad=5)]
+
+    resultado = calcular_total(carrito, "CABA")
+
+    assert resultado == {
+        "subtotal": Decimal("124999.50"),
+        "descuento": Decimal("12499.95"),
+        "envio": Decimal("0"),
+        "total": Decimal("112499.55"),
+    }
+
+
+def test_total_con_bienvenida_y_envio_pago():
+    carrito = [
+        item("buzo", cantidad=2),
+        item("remera"),
+    ]
+
+    resultado = calcular_total(
+        carrito,
+        "GBA",
+        "BIENVENIDA",
+        date(2026, 10, 1),
+    )
+
+    assert resultado == {
+        "subtotal": Decimal("61999.30"),
+        "descuento": Decimal("3000.00"),
+        "envio": Decimal("4000"),
+        "total": Decimal("62999.30"),
+    }
+
+
+def test_total_con_retiro_no_agrega_envio():
+    carrito = [item("campera")]
+
+    resultado = calcular_total(carrito, "RETIRO")
+
+    assert resultado == {
+        "subtotal": Decimal("47999.99"),
+        "descuento": Decimal("0.00"),
+        "envio": Decimal("0"),
+        "total": Decimal("47999.99"),
+    }
+
+
+def test_calcular_total_valida_cupon_antes_que_zona():
+    carrito = [item("buzo")]
+
+    assert codigo_de_error(
+        calcular_total,
+        carrito,
+        "MARTE",
+        "NOEXISTE",
+        date(2026, 10, 1),
+    ) == "CUPON_INVALIDO"
+
+
+def test_calcular_total_valida_zona_despues_de_carrito_items_y_cupon():
+    carrito = [item("buzo")]
+
+    assert codigo_de_error(
+        calcular_total,
+        carrito,
+        "MARTE",
+        None,
+        date(2026, 10, 1),
+    ) == "ZONA_INVALIDA"
+
+
+def test_total_no_modifica_el_carrito_aunque_haya_descuento_y_envio():
+    carrito = [
+        item("buzo", talle=" m ", cantidad=2),
+        item("remera", talle="xl", cantidad=3),
+    ]
+    copia = copy.deepcopy(carrito)
+
+    calcular_total(
+        carrito,
+        " gba ",
+        " bienvenida ",
+        date(2026, 10, 1),
+    )
+
+    assert carrito == copia
+
