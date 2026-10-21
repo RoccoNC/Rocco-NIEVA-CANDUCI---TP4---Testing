@@ -13,6 +13,7 @@ from checkout import (
     validar_item,
 )
 
+
 HOY_VIGENTE = date(2026, 10, 1)
 
 
@@ -323,3 +324,99 @@ def test_el_item_invalido_se_informa_antes_que_el_cupon_y_la_zona():
     carrito = [item("zapatillas")]
 
     assert codigo_de_error(calcular_total, carrito, "MARTE", "NOEXISTE") == "PRODUCTO_INEXISTENTE"
+
+
+# ---------------------------------------------------------------------------
+# R5 — Descuento por cantidad
+# ---------------------------------------------------------------------------
+
+
+def test_cuatro_prendas_no_aplican_descuento_por_cantidad():
+    descuento = calcular_descuento(Decimal("100000.00"), 4)
+
+    assert descuento == Decimal("0.00")
+
+
+def test_cinco_prendas_aplican_diez_por_ciento_de_descuento():
+    descuento = calcular_descuento(Decimal("100000.00"), 5)
+
+    assert descuento == Decimal("10000.00")
+
+
+def test_seis_prendas_aplican_diez_por_ciento_de_descuento():
+    descuento = calcular_descuento(Decimal("100000.00"), 6)
+
+    assert descuento == Decimal("10000.00")
+
+
+def test_diez_prendas_aplican_diez_por_ciento_de_descuento():
+    descuento = calcular_descuento(Decimal("249999.00"), 10)
+
+    assert descuento == Decimal("24999.90")
+
+
+def test_cinco_buzos_aplican_descuento_en_calcular_total():
+    carrito = [item("buzo", cantidad=5)]
+
+    resultado = calcular_total(carrito, "CABA")
+
+    assert resultado["descuento"] == Decimal("12499.95")
+
+
+def test_siete_buzos_aplican_diez_por_ciento():
+    carrito = [item("buzo", cantidad=7)]
+
+    resultado = calcular_total(carrito, "CABA")
+
+    assert resultado["descuento"] == Decimal("17499.93")
+
+
+def test_cinco_prendas_repartidas_en_varios_items_aplican_descuento():
+    carrito = [
+        item("buzo", cantidad=3),
+        item("remera", cantidad=2),
+    ]
+
+    resultado = calcular_total(carrito, "CABA")
+
+    assert resultado["descuento"] == Decimal("9899.87")
+
+
+def test_cuatro_prendas_repartidas_no_aplican_descuento():
+    carrito = [
+        item("buzo", cantidad=2),
+        item("remera", cantidad=2),
+    ]
+
+    resultado = calcular_total(carrito, "CABA")
+
+    assert resultado["descuento"] == Decimal("0.00")
+
+
+def test_veinte_prendas_repartidas_aplican_un_solo_diez_por_ciento():
+    carrito = [
+        item("buzo", cantidad=10),
+        item("remera", cantidad=10),
+    ]
+
+    resultado = calcular_total(carrito, "CABA")
+
+    assert resultado["descuento"] == Decimal("36999.40")
+
+
+def test_descuento_por_cantidad_devuelve_decimal():
+    descuento = calcular_descuento(Decimal("100000.00"), 5)
+
+    assert isinstance(descuento, Decimal)
+
+
+def test_descuento_por_cantidad_redondea_medio_centavo_hacia_arriba():
+    descuento = calcular_descuento(Decimal("100.05"), 5)
+
+    assert descuento == Decimal("10.01")
+
+
+def test_descuento_por_cantidad_redondea_menos_de_medio_centavo_hacia_abajo():
+    descuento = calcular_descuento(Decimal("100.04"), 5)
+
+    assert descuento == Decimal("10.00")
