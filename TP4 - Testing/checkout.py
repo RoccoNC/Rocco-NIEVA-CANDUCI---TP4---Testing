@@ -37,12 +37,7 @@ def validar_item(item):
         raise CheckoutError("PRODUCTO_INEXISTENTE", f"Producto inexistente: {producto!r}")
 
     talle = item["talle"]
-    if not isinstance(talle, str):
-        raise CheckoutError("TALLE_INVALIDO", f"Talle inválido: {talle!r}")
-
-    item["talle"] = talle.strip().upper()
-
-    if item["talle"] not in TALLES:
+    if not isinstance(talle, str) or talle.strip().upper() not in TALLES:
         raise CheckoutError("TALLE_INVALIDO", f"Talle inválido: {talle!r}")
 
     cantidad = item["cantidad"]
@@ -51,6 +46,9 @@ def validar_item(item):
 
 
 def calcular_subtotal(carrito):
+    if not isinstance(carrito, (list, tuple)) or len(carrito) == 0:
+        raise CheckoutError("CARRITO_VACIO", "El carrito no tiene ítems")
+
     subtotal = Decimal("0")
     for item in carrito:
         validar_item(item)
