@@ -154,7 +154,7 @@ def calcular_descuento(
     )
 
 
-def calcular_envio(subtotal, zona):
+def calcular_envio(subtotal_con_descuento, zona):
     zona = zona.strip().upper()
 
     if zona not in ENVIOS:
@@ -163,7 +163,7 @@ def calcular_envio(subtotal, zona):
             f"Zona inválida. Opciones: {', '.join(ENVIOS.keys())}",
         )
 
-    if subtotal >= Decimal("60000"):
+    if subtotal_con_descuento >= Decimal("60000"):
         return Decimal("0")
 
     return ENVIOS[zona]
@@ -189,8 +189,10 @@ def calcular_total(
         fecha,
     )
 
+    subtotal_con_descuento = subtotal - descuento
+
     envio = calcular_envio(
-        subtotal,
+        subtotal_con_descuento,
         zona,
     )
 
