@@ -502,3 +502,115 @@ def test_calcular_total_normaliza_cupon_y_aplica_el_mayor_descuento():
     resultado = calcular_total(carrito, "CABA", "  egresados2026  ", date(2026, 10, 1))
     assert resultado["descuento"] == Decimal("18749.93")
 
+
+# ---------------------------------------------------------------------------
+# R8 — Envío
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("zona", "esperado"),
+    [
+        ("CABA", Decimal("2500")),
+        ("GBA", Decimal("4000")),
+        ("INTERIOR", Decimal("6500")),
+        ("RETIRO", Decimal("0")),
+    ],
+)
+def test_cada_zona_tiene_el_costo_de_envio_especificado(zona, esperado):
+    envio = calcular_envio(Decimal("59999.99"), zona)
+
+    assert envio == esperado
+
+
+@pytest.mark.parametrize(
+    ("zona", "esperado"),
+    [
+        (" caba ", Decimal("2500")),
+        ("gba", Decimal("4000")),
+        (" interior ", Decimal("6500")),
+        ("retiro", Decimal("0")),
+    ],
+)
+def test_la_zona_ignora_mayusculas_minusculas_y_espacios(zona, esperado):
+    envio = calcular_envio(Decimal("59999.99"), zona)
+
+    assert envio == esperado
+
+
+def test_subtotal_con_descuento_de_60000_tiene_envio_gratis():
+    envio = calcular_envio(Decimal("60000.00"), "CABA")
+
+    assert envio == Decimal("0")
+
+
+def test_subtotal_con_descuento_mayor_a_60000_tiene_envio_gratis():
+    envio = calcular_envio(Decimal("60000.01"), "INTERIOR")
+
+    assert envio == Decimal("0")
+
+
+def test_subtotal_con_descuento_de_59999_99_paga_envio():
+    envio = calcular_envio(Decimal("59999.99"), "CABA")
+
+    assert envio == Decimal("2500")
+
+
+def test_zona_inexistente_lanza_checkout_error_zona_invalida():
+    assert codigo_de_error(
+        calcular_envio,
+        Decimal("10000.00"),
+        "MARTE",
+    ) == "ZONA_INVALIDA"
+
+
+def test_calcular_total_evalua_envio_gratis_despues_del_descuento():
+    carrito = [item("campera"), item("remera")]
+
+    resultado = calcular_total(
+        carrito,
+        "CABA",
+        "BIENVENIDA",
+        date(2026, 10, 1),
+    )
+
+    assert resultado["subtotal"] == Decimal("59999.49")
+    assert resultado["descuento"] == Decimal("3000.00")
+    assert resultado["envio"] == Decimal("2500")
+
+
+def test_calcular_total_no_da_envio_gratis_si_el_descuento_baja_de_60000():
+    carrito = [
+        item("buzo", cantidad=2),
+        item("remera"),
+    ]
+
+    resultado = calcular_total(
+        carrito,
+        "CABA",
+        "BIENVENIDA",
+        date(2026, 10, 1),
+    )
+
+    assert resultado["subtotal"] == Decimal("61999.30")
+    assert resultado["descuento"] == Decimal("3000.00")
+    assert resultado["envio"] == Decimal("2500")
+
+
+def test_calcular_total_da_envio_gratis_si_luego_del_descuento_quedan_60000_o_mas():
+    carrito = [
+        item("buzo", cantidad=2),
+        item("remera", cantidad=2),
+    ]
+
+    resultado = calcular_total(
+        carrito,
+        "CABA",
+        None,
+        date(2026, 10, 1),
+    )
+
+    assert resultado["subtotal"] == Decimal("73998.80")
+    assert resultado["descuento"] == Decimal("0.00")
+    assert resultado["envio"] == Decimal("0")
+
