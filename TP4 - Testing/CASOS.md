@@ -199,7 +199,18 @@ Producto `buzo` y talle `M` en todos, para aislar R3. La función probada es
 | R3-19 | P1 + efecto en el cálculo | `calcular_subtotal([(remera, M, 10)])` | `Decimal("119995.00")` |
 | R3-20 | P4 vía `calcular_subtotal` | `calcular_subtotal([(buzo, M, 11)])` | `CANTIDAD_INVALIDA` (el error se propaga) |
 | R3-21 | Orden de validación (sección 3) | `validar_item({"producto": "buzo", "talle": "M", "cantidad": 0})` | `CANTIDAD_INVALIDA` (con producto y talle válidos, el único error es la cantidad) |
-| R3-22 | Orden entre ítems (sección 3) | carrito con `(buzo, M, 0)` primero y `(zapatillas, M, 1)`
+| R3-22 | Orden entre ítems (sección 3) | carrito con `(buzo, M, 0)` primero y `(zapatillas, M, 1)` segundo, vía `calcular_subtotal` | `CANTIDAD_INVALIDA` (se informa el primer ítem con error, no el segundo) |
+
+### Decisiones de interpretación
+
+- **P8 (`True`):** en Python `True` es un `int` (vale 1), así que un chequeo ingenuo como
+  `1 <= cantidad <= 10` lo acepta. La especificación pide un "número entero" y un booleano
+  no es una cantidad de prendas, por eso se toma como inválido.
+- **P6 (`"3"`):** un texto no es un número, aunque parezca uno. No se convierte.
+- **P5 y P9:** `2.5` y `nan` no son enteros. No se prueba `10.0`, porque la especificación
+  no define si un `float` con valor entero cuenta como entero.
+- **R3-18 a R3-20:** muestran que la cantidad válida llega bien al cálculo y que el error
+  de `validar_item` se propaga a través de `calcular_subtotal`.
 
 ---
 
@@ -325,7 +336,17 @@ precios del catálogo (R1) o valores directos cuando se indica.
 | R5-10 | P5 (4 prendas en 4 ítems) | `calcular_total([(buzo, M, 1), (remera, M, 1), (campera, M, 1), (buzo, L, 1)], "CABA")` | descuento `Decimal("0.00")` |
 | R5-11 | P6 | `calcular_total([(buzo, M, 10), (remera, M, 10)], "CABA")` | subtotal `Decimal("369994.00")`, descuento `Decimal("36999.40")` |
 | R5-12 | P7, medio centavo que sube | `calcular_descuento(Decimal("100.05"), 5)` | `Decimal("10.01")` (10% = 10,005) |
-| R5-13 | P7 con precios reales | `calcular_total([(campera, M, 5)], "CABA")`
+| R5-13 | P7 con precios reales | `calcular_total([(campera, M, 5)], "CABA")` | subtotal `Decimal("239999.95")`, descuento `Decimal("24000.00")` (10% = 23.999,995), envío `Decimal("0.00")`, total `Decimal("215999.95")` |
+| R5-14 | P8 (menos de medio centavo) | `calcular_descuento(Decimal("100.04"), 5)` | `Decimal("10.00")` (10% = 10,004) |
+
+### Decisiones de interpretación
+
+- **"Cantidad total de prendas"** es la suma de las cantidades de todos los ítems, no la
+  cantidad de ítems. R5-10 lo muestra: 4 ítems de 1 prenda son 4 prendas y no hay descuento.
+- **El umbral es inclusive** ("5 o más"): R5-02 (4) y R5-03 (5) separan `>` de `>=`.
+- **`calcular_descuento` recibe `cantidad_prendas` ya sumada.** La suma se prueba a través
+  de `calcular_total` (R5-08 a R5-11).
+- **El cupón se prueba en R6.** Acá el descuento por cantidad se prueba solo, sin cupón.
 
 
 ---
@@ -549,7 +570,7 @@ da **$ 1.799,93**.
 |---|---|---|
 | 15% alrededor del medio centavo | subtotal $ 11.999,49 / $ 11.999,50 / $ 11.999,51 | $ 1.799,92 / $ 1.799,93 / $ 1.799,93 |
 | 10% alrededor del medio centavo | subtotal $ 100,04 / $ 100,05 / $ 100,06 | $ 10,00 / $ 10,01 / $ 10,01 |
-| Dígito anterior al medio centavo | $ 100,05 (10,005, dígito 0 par) y $ 100,25 (10,025, dígito 2 par) | $ 10,01 y $ 10,03 |
+| Dígito anterior al medio centavo | $ 100,05 (10,005, dígito 0, par), $ 100,15 (10,015, dígito 1, impar) y $ 100,25 (10,025, dígito 2, par) | $ 10,01, $ 10,02 y $ 10,03 |
 
 ### Casos
 
@@ -599,6 +620,7 @@ contrato de la función acepta cualquier subtotal.
 | R7-20 | P5 (medio centavo exacto) | `Decimal("100.05")` | `Decimal("10.01")` (10% = 10,005) |
 | R7-21 | P6 (justo arriba del medio centavo) | `Decimal("100.06")` | `Decimal("10.01")` (10% = 10,006) |
 | R7-22 | P8 (medio centavo exacto, dígito anterior par) | `Decimal("100.25")` | `Decimal("10.03")` (10% = 10,025) |
+| R7-27 | P8 (medio centavo exacto, dígito anterior impar) | `Decimal("100.15")` | `Decimal("10.02")` (10% = 10,015) |
 
 **Importes fijos y total**
 
@@ -621,8 +643,9 @@ contrato de la función acepta cualquier subtotal.
 - **Redondeo comercial contra otros redondeos:** los casos R7-13, R7-15, R7-20 y R7-22 son
   medios centavos exactos. Un redondeo "al par" daría 1.799,92, 3.749,98, 10,00 y 10,02, un
   truncado daría un centavo menos, y solo el redondeo comercial da los valores de la
-  tabla. Los pares con dígito anterior par e impar (R7-13 con 2 y R7-20 con 0) comprueban
-  que no se esté usando el redondeo al par.
+  tabla. Los casos con dígito anterior par (R7-13 con 2, R7-20 con 0 y R7-22 con 2) son los que
+  distinguen el redondeo al par del comercial. R7-27, con dígito impar (1), también sube con
+  el redondeo al par, así que no distingue, pero completa la partición P8.
 - **P3:** los precios con centavos no se representan exactos en `float`. R7-08 muestra el
   error de 7 buzos y sirve para detectar si en algún punto se pasó por `float`.
 - **Entradas `Decimal`:** el contrato de las funciones recibe el subtotal como `Decimal`,
