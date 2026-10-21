@@ -28,11 +28,6 @@ CUPONES = {
         "valor": Decimal("3000"),
         "minimo": Decimal("20000"),
     },
-    "DEBUG100": {
-        "tipo": "porcentaje",
-        "valor": Decimal("1.00"),
-        "vence": date(2099, 12, 31),
-    },
 }
 
 ENVIOS = {
@@ -45,6 +40,7 @@ ENVIOS = {
 
 def validar_item(item):
     producto = item["producto"]
+
     if not isinstance(producto, str) or producto not in CATALOGO:
         raise CheckoutError(
             "PRODUCTO_INEXISTENTE",
@@ -52,6 +48,7 @@ def validar_item(item):
         )
 
     talle = item["talle"]
+
     if not isinstance(talle, str) or talle.strip().upper() not in TALLES:
         raise CheckoutError(
             "TALLE_INVALIDO",
@@ -59,6 +56,7 @@ def validar_item(item):
         )
 
     cantidad = item["cantidad"]
+
     if (
         isinstance(cantidad, bool)
         or not isinstance(cantidad, int)
@@ -90,41 +88,65 @@ def calcular_descuento(
     subtotal,
     cantidad_prendas,
     cupon=None,
-    fecha=date.today(),
+    fecha=None,
 ):
-    descuento = Decimal("0")
+    descuento_cantidad = Decimal("0.00")
+    descuento_cupon = Decimal("0.00")
 
     if cantidad_prendas >= 5:
-        descuento += subtotal * Decimal("0.10")
+        descuento_cantidad = (
+            subtotal * Decimal("0.10")
+        ).quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP,
+        )
 
     if cupon is not None:
-        codigo = cupon.strip()
+        codigo = cupon.strip().upper()
 
-        if codigo not in CUPONES:
-            raise CheckoutError(
-                "CUPON_INVALIDO",
-                "El cupón no existe",
-            )
-
-        datos = CUPONES[codigo]
-
-        if datos["tipo"] == "porcentaje":
-            if not fecha < datos["vence"]:
+        if codigo != "":
+            if codigo not in CUPONES:
                 raise CheckoutError(
-                    "CUPON_VENCIDO",
-                    "El cupón está vencido",
+                    "CUPON_INVALIDO",
+                    "El cupón no existe",
                 )
 
-            descuento += subtotal * datos["valor"]
+            datos = CUPONES[codigo]
 
-        elif datos["tipo"] == "fijo":
-            if subtotal < datos["minimo"]:
-                raise CheckoutError(
-                    "CUPON_MINIMO_NO_ALCANZADO",
-                    f"El cupón requiere una compra mínima de ${datos['minimo']}",
+            if datos["tipo"] == "porcentaje":
+                fecha_actual = fecha if fecha is not None else date.today()
+
+                if fecha_actual > datos["vence"]:
+                    raise CheckoutError(
+                        "CUPON_VENCIDO",
+                        "El cupón está vencido",
+                    )
+
+                descuento_cupon = (
+                    subtotal * datos["valor"]
+                ).quantize(
+                    Decimal("0.01"),
+                    rounding=ROUND_HALF_UP,
                 )
 
-            descuento += datos["valor"]
+            elif datos["tipo"] == "fijo":
+                if subtotal < datos["minimo"]:
+                    raise CheckoutError(
+                        "CUPON_MINIMO_NO_ALCANZADO",
+                        f"El cupón requiere una compra mínima de ${datos['minimo']}",
+                    )
+
+                descuento_cupon = datos["valor"].quantize(
+                    Decimal("0.01")
+                )
+
+    descuento = max(
+        descuento_cantidad,
+        descuento_cupon,
+    )
+
+    if descuento > subtotal:
+        descuento = subtotal
 
     return descuento.quantize(
         Decimal("0.01"),
@@ -138,11 +160,11 @@ def calcular_envio(subtotal, zona):
     if zona not in ENVIOS:
         raise CheckoutError(
             "ZONA_INVALIDA",
-            f"Zona inválida. Opciones: {ENVIOS.keys().join(', ')}",
+            f"Zona inválida. Opciones: {', '.join(ENVIOS.keys())}",
         )
 
-    if subtotal >= 60000:
-        return 0
+    if subtotal >= Decimal("60000"):
+        return Decimal("0")
 
     return ENVIOS[zona]
 
@@ -151,13 +173,14 @@ def calcular_total(
     carrito,
     zona,
     cupon=None,
-    fecha=date.today(),
+    fecha=None,
 ):
     subtotal = calcular_subtotal(carrito)
 
     prendas = 0
+
     for item in carrito:
-        prendas = prendas + item["cantidad"]
+        prendas += item["cantidad"]
 
     descuento = calcular_descuento(
         subtotal,
@@ -166,7 +189,10 @@ def calcular_total(
         fecha,
     )
 
-    envio = calcular_envio(subtotal, zona)
+    envio = calcular_envio(
+        subtotal,
+        zona,
+    )
 
     total = subtotal - descuento + envio
 
@@ -174,7 +200,10 @@ def calcular_total(
         "subtotal": subtotal,
         "descuento": descuento,
         "envio": envio,
-        "total": round(total, 2),
+        "total": total.quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP,
+        ),
     }
 
     return resultado
