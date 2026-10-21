@@ -45,8 +45,9 @@ def validar_item(item):
     if item["talle"] not in TALLES:
         raise CheckoutError("TALLE_INVALIDO", f"Talle inválido: {talle!r}")
 
-    if not (1 <= item["cantidad"] < 10):
-        raise CheckoutError("CANTIDAD_INVALIDA", "La cantidad debe estar entre 1 y 10")
+    cantidad = item["cantidad"]
+    if isinstance(cantidad, bool) or not isinstance(cantidad, int) or not (1 <= cantidad <= 10):
+        raise CheckoutError("CANTIDAD_INVALIDA", "La cantidad debe ser un entero entre 1 y 10")
 
 
 def calcular_subtotal(carrito):
