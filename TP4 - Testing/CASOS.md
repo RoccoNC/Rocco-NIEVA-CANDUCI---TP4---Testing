@@ -200,3 +200,129 @@ Producto `buzo` y talle `M` en todos, para aislar R3. La función probada es
 | R3-20 | P4 vía `calcular_subtotal` | `calcular_subtotal([(buzo, M, 11)])` | `CANTIDAD_INVALIDA` (el error se propaga) |
 | R3-21 | Orden de validación (sección 3) | `validar_item({"producto": "buzo", "talle": "M", "cantidad": 0})` | `CANTIDAD_INVALIDA` (con producto y talle válidos, el único error es la cantidad) |
 | R3-22 | Orden entre ítems (sección 3) | carrito con `(buzo, M, 0)` primero y `(zapatillas, M, 1)`
+
+---
+
+## R4 — Carrito
+
+**Regla:** el carrito debe tener al menos un ítem, si no da `CARRITO_VACIO`. Ninguna
+función modifica el carrito que recibe: el frontend reutiliza ese objeto y espera
+encontrarlo igual.
+
+### Particiones
+
+| ID | Partición | Tipo |
+|---|---|---|
+| P1 | Carrito con exactamente un ítem | Válida |
+| P2 | Carrito con varios ítems de productos distintos | Válida |
+| P3 | Carrito con el mismo producto repetido en dos ítems (distinto talle) | Válida |
+| P4 | Carrito con muchas prendas en total (más de 10 sumando ítems) | Válida |
+| P5 | Carrito vacío (`[]`) | Inválida |
+| P6 | Carrito que no es una lista (`None`) | Inválida |
+| P7 | Ejecución exitosa: el carrito original no cambia | Efecto lateral |
+| P8 | Ejecución con error: el carrito original no cambia | Efecto lateral |
+
+### Valores límite
+
+| Límite | Valores a probar | Resultado |
+|---|---|---|
+| Cantidad de ítems | 0 / 1 / 2 | inválido / válido / válido |
+| Prendas en total | 10 en un ítem / 20 repartidas en dos ítems | ambos válidos (el límite de 10 es **por ítem**, R3) |
+
+### Casos
+
+Talle `M` y cantidades válidas salvo que se indique. Para los casos de no modificación, la
+comprobación es: **el carrito después de la llamada es igual, en contenido, orden, claves
+y valores, a una copia hecha antes de llamar.**
+
+| ID | Partición | Entrada | Resultado esperado |
+|---|---|---|---|
+| R4-01 | P1 (límite inferior válido) | `calcular_subtotal([(buzo, M, 1)])` | `Decimal("24999.90")` |
+| R4-02 | P2 | `calcular_subtotal([(buzo, M, 1), (remera, M, 1)])` | `Decimal("36999.40")` |
+| R4-03 | P3 | `calcular_subtotal([(buzo, M, 1), (buzo, L, 2)])` | `Decimal("74999.70")` |
+| R4-04 | P4 | `calcular_subtotal([(buzo, M, 10), (remera, M, 10)])` | `Decimal("369994.00")` |
+| R4-05 | P5 (límite inferior inválido) | `calcular_subtotal([])` | `CheckoutError`, `code="CARRITO_VACIO"` |
+| R4-06 | P5 | `calcular_total([], "CABA")` | `CARRITO_VACIO` |
+| R4-07 | P6 | `calcular_total(None, "CABA")` | `CheckoutError` (nunca otra excepción) |
+| R4-08 | P7, `calcular_subtotal` | carrito `[(buzo, " m ", 2)]` | el carrito queda con el talle `" m "`, sin pasar a `"M"` |
+| R4-09 | P7, `calcular_total` | carrito `[(buzo, " m ", 2)]`, zona `"CABA"` | resultado correcto y el carrito queda igual |
+| R4-10 | P7, `calcular_total` con cupón | carrito de 2 ítems, cupón `"EGRESADOS2026"`, fecha vigente | resultado correcto y el carrito queda igual |
+| R4-11 | P7, `validar_item` | ítem `(buzo, " m ", 1)` | no lanza error y el ítem queda con `" m "` |
+| R4-12 | P7, claves extra | ítem con `"precio": 1` y `"color": "rojo"` | después de `calcular_subtotal`, el ítem conserva esas dos claves con los mismos valores |
+| R4-13 | P7, orden y largo | carrito con 3 ítems | después de `calcular_total`, mismo largo y mismo orden de ítems |
+| R4-14 | P8, error de talle | `validar_item` con ítem `(buzo, " xxxl ", 1)` | lanza `TALLE_INVALIDO` y el ítem queda con `" xxxl "` |
+| R4-15 | P8, error en el segundo ítem | `calcular_subtotal([(buzo, "m", 1), (zapatillas, "m", 1)])` | lanza `PRODUCTO_INEXISTENTE` y el primer ítem sigue con `"m"` (no llegó a normalizarse) |
+| R4-16 | P8, error de cupón | `calcular_total` con carrito válido y cupón `"NOEXISTE"` | lanza `CUPON_INVALIDO` y el carrito queda igual |
+| R4-17 | P8, error de zona | `calcular_total` con carrito válido y zona `"MARTE"` | lanza `ZONA_INVALIDA` y el carrito queda igual |
+| R4-18 | Orden de validación (sección 3) | `calcular_total([], "MARTE")` | `CARRITO_VACIO` (el carrito vacío se informa antes que la zona inválida) |
+| R4-19 | Orden de validación (sección 3) | `calcular_total([], "CABA", "NOEXISTE")` | `CARRITO_VACIO` (antes que el cupón inválido) |
+| R4-20 | Orden de validación (sección 3) | `calcular_total([(zapatillas, M, 1)], "MARTE", "NOEXISTE")` | `PRODUCTO_INEXISTENTE` (el ítem se informa antes que cupón y zona) |
+
+### Decisiones de interpretación
+
+- **P6 (carrito `None`):** la especificación dice "al menos un ítem, si no, `CARRITO_VACIO`"
+  y que ante cualquier dato inválido se lanza `CheckoutError`. Un carrito `None` no
+  tiene ítems, así que `CARRITO_VACIO` es el código que mejor encaja. En los tests
+  unitarios se comprueba solo que sea `CheckoutError`, para no depender de esa
+  lectura.
+- **Qué funciones reciben el carrito:** `calcular_subtotal` y `calcular_total` reciben la
+  lista, y `validar_item` recibe un ítem. `calcular_descuento` y `calcular_envio` reciben
+  números y texto, así que no hay nada que mutar en ellas.
+- **R4-08, R4-11 y R4-14:** el talle se normaliza para comparar (R2), pero esa
+  normalización no puede escribirse de vuelta en el ítem que recibió la función.
+- **R4-15:** es el caso más delicado. Si una función normaliza el primer ítem y recién
+  después falla en el segundo, el carrito queda modificado aunque la llamada haya dado
+  error.
+- **No se define un máximo de ítems en el carrito.** Solo está limitada la cantidad por
+  ítem (R3), por eso R4-04 es válido.
+
+---
+
+## R5 — Descuento por cantidad
+
+**Regla:** si la cantidad total de prendas del carrito (la suma de las cantidades de todos
+los ítems) es **5 o más**, se aplica un **10%** sobre el subtotal. El resultado se redondea
+al centavo con redondeo comercial (R7): el medio centavo sube.
+
+### Particiones
+
+| ID | Partición | Tipo |
+|---|---|---|
+| P1 | Menos de 5 prendas en total (1 a 4) | Sin descuento |
+| P2 | Exactamente 5 prendas | Con descuento |
+| P3 | Más de 5 prendas (6 a 10) en un solo ítem | Con descuento |
+| P4 | 5 o más prendas repartidas en varios ítems, con cada ítem por debajo de 5 | Con descuento |
+| P5 | Menos de 5 prendas repartidas en varios ítems | Sin descuento |
+| P6 | Total mayor que 10, sumando varios ítems (11 a 20) | Con descuento |
+| P7 | Descuento cuyo cálculo da un medio centavo exacto | Redondeo |
+| P8 | Descuento cuyo cálculo da menos de medio centavo | Redondeo |
+
+### Valores límite
+
+| Límite | Valores a probar | Resultado |
+|---|---|---|
+| Umbral de prendas | 4 / 5 / 6 | sin descuento / con 10% / con 10% |
+| Redondeo | resultado del 10% con exactamente medio centavo | sube al centavo siguiente |
+| Máximo del carrito | 10 + 10 prendas (20 en total) | un único 10%, sin escalones |
+
+### Casos
+
+Se prueba `calcular_descuento(subtotal, cantidad_prendas)` sin cupón, y `calcular_total`
+para ver el efecto completo. Los subtotales de los ejemplos son los que resultan de los
+precios del catálogo (R1) o valores directos cuando se indica.
+
+| ID | Partición | Entrada | Resultado esperado |
+|---|---|---|---|
+| R5-01 | P1 | `calcular_descuento(Decimal("24999.90"), 1)` | `Decimal("0.00")` |
+| R5-02 | P1 (justo debajo del umbral) | `calcular_descuento(Decimal("100000.00"), 4)` | `Decimal("0.00")` |
+| R5-03 | P2 (umbral) | `calcular_descuento(Decimal("100000.00"), 5)` | `Decimal("10000.00")` |
+| R5-04 | P3 (justo arriba del umbral) | `calcular_descuento(Decimal("100000.00"), 6)` | `Decimal("10000.00")` |
+| R5-05 | P3 (máximo en un ítem) | `calcular_descuento(Decimal("249999.00"), 10)` | `Decimal("24999.90")` |
+| R5-06 | P2 con precios reales | `calcular_total([(buzo, M, 5)], "CABA")` | `descuento = Decimal("12499.95")` (10% de $124.999,50) |
+| R5-07 | P3 con precios reales | `calcular_total([(buzo, M, 7)], "CABA")` | `descuento = Decimal("17499.93")` (10% de $174.999,30) |
+| R5-08 | P4, ítems por debajo de 5 | `calcular_total([(buzo, M, 3), (remera, M, 2)], "CABA")` | subtotal `Decimal("98998.70")`, descuento `Decimal("9899.87")` |
+| R5-09 | P5 | `calcular_total([(buzo, M, 2), (remera, S, 2)], "CABA")` | subtotal `Decimal("73998.80")`, descuento `Decimal("0.00")` |
+| R5-10 | P5 (4 prendas en 4 ítems) | `calcular_total([(buzo, M, 1), (remera, M, 1), (campera, M, 1), (buzo, L, 1)], "CABA")` | descuento `Decimal("0.00")` |
+| R5-11 | P6 | `calcular_total([(buzo, M, 10), (remera, M, 10)], "CABA")` | subtotal `Decimal("369994.00")`, descuento `Decimal("36999.40")` |
+| R5-12 | P7, medio centavo que sube | `calcular_descuento(Decimal("100.05"), 5)` | `Decimal("10.01")` (10% = 10,005) |
+| R5-13 | P7 con precios reales | `calcular_total([(campera, M, 5)], "CABA")`
