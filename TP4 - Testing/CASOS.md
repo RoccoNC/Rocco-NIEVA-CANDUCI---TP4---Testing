@@ -142,3 +142,61 @@ Producto `buzo` y cantidad `1` en todos, para aislar R2. La función probada es
   que el documento no define.
 - **Relación con R4:** normalizar el talle (pasarlo a mayúscula y recortarlo) no debe
   modificar el ítem original. Eso se prueba en la sección de R4.
+---
+
+## R3 — Cantidad
+
+**Regla:** la cantidad es un número entero entre **1 y 10, ambos inclusive**. Cualquier otro
+valor, incluidos los no enteros, da `CANTIDAD_INVALIDA`.
+
+### Particiones
+
+| ID | Partición | Tipo |
+|---|---|---|
+| P1 | Entero dentro del rango, de 1 a 10 | Válida |
+| P2 | Entero menor que 1: cero | Inválida |
+| P3 | Entero menor que 1: negativo (`-1`, `-10`) | Inválida |
+| P4 | Entero mayor que 10 (`11`, `100`) | Inválida |
+| P5 | Número no entero (`2.5`, `0.5`, `10.5`) | Inválida |
+| P6 | Texto, aunque parezca un número (`"3"`) | Inválida |
+| P7 | `None` | Inválida |
+| P8 | Booleano (`True`) | Inválida |
+| P9 | Número especial de punto flotante (`nan`) | Inválida |
+
+### Valores límite
+
+| Límite | Valores a probar | Resultado |
+|---|---|---|
+| Inferior | `0` / `1` / `2` | inválido / válido / válido |
+| Superior | `9` / `10` / `11` | válido / válido / inválido |
+| No enteros pegados a los límites | `0.5`, `1.5`, `10.5` | todos inválidos |
+
+### Casos
+
+Producto `buzo` y talle `M` en todos, para aislar R3. La función probada es
+`validar_item`, salvo donde se indica.
+
+| ID | Partición | Cantidad de entrada | Resultado esperado |
+|---|---|---|---|
+| R3-01 | P1 (límite inferior) | `1` | no lanza error |
+| R3-02 | P1 (justo arriba del límite inferior) | `2` | no lanza error |
+| R3-03 | P1 (valor medio) | `5` | no lanza error |
+| R3-04 | P1 (justo debajo del límite superior) | `9` | no lanza error |
+| R3-05 | P1 (límite superior) | `10` | no lanza error |
+| R3-06 | P2 (justo debajo del límite inferior) | `0` | `CheckoutError`, `code="CANTIDAD_INVALIDA"` |
+| R3-07 | P3 | `-1` | `CANTIDAD_INVALIDA` |
+| R3-08 | P3 | `-10` | `CANTIDAD_INVALIDA` |
+| R3-09 | P4 (justo arriba del límite superior) | `11` | `CANTIDAD_INVALIDA` |
+| R3-10 | P4 | `100` | `CANTIDAD_INVALIDA` |
+| R3-11 | P5 | `2.5` | `CANTIDAD_INVALIDA` |
+| R3-12 | P5 (entre 0 y 1) | `0.5` | `CANTIDAD_INVALIDA` |
+| R3-13 | P5 (entre 10 y 11) | `10.5` | `CANTIDAD_INVALIDA` |
+| R3-14 | P6 | `"3"` | `CANTIDAD_INVALIDA` (nunca otra excepción) |
+| R3-15 | P7 | `None` | `CANTIDAD_INVALIDA` (nunca otra excepción) |
+| R3-16 | P8 | `True` | `CANTIDAD_INVALIDA` |
+| R3-17 | P9 | `float("nan")` | `CANTIDAD_INVALIDA` (nunca otra excepción) |
+| R3-18 | P1 + efecto en el cálculo | `calcular_subtotal([(buzo, M, 10)])` | `Decimal("249999.00")` |
+| R3-19 | P1 + efecto en el cálculo | `calcular_subtotal([(remera, M, 10)])` | `Decimal("119995.00")` |
+| R3-20 | P4 vía `calcular_subtotal` | `calcular_subtotal([(buzo, M, 11)])` | `CANTIDAD_INVALIDA` (el error se propaga) |
+| R3-21 | Orden de validación (sección 3) | `validar_item({"producto": "buzo", "talle": "M", "cantidad": 0})` | `CANTIDAD_INVALIDA` (con producto y talle válidos, el único error es la cantidad) |
+| R3-22 | Orden entre ítems (sección 3) | carrito con `(buzo, M, 0)` primero y `(zapatillas, M, 1)`
