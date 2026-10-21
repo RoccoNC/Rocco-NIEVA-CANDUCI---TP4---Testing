@@ -1,5 +1,5 @@
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 
 class CheckoutError(Exception):
@@ -18,9 +18,21 @@ CATALOGO = {
 TALLES = ["XS", "S", "M", "L", "XL", "XXL"]
 
 CUPONES = {
-    "EGRESADOS2026": {"tipo": "porcentaje", "valor": Decimal("0.15"), "vence": date(2026, 11, 30)},
-    "BIENVENIDA": {"tipo": "fijo", "valor": Decimal("3000"), "minimo": Decimal("20000")},
-    "DEBUG100": {"tipo": "porcentaje", "valor": Decimal("1.00"), "vence": date(2099, 12, 31)},
+    "EGRESADOS2026": {
+        "tipo": "porcentaje",
+        "valor": Decimal("0.15"),
+        "vence": date(2026, 11, 30),
+    },
+    "BIENVENIDA": {
+        "tipo": "fijo",
+        "valor": Decimal("3000"),
+        "minimo": Decimal("20000"),
+    },
+    "DEBUG100": {
+        "tipo": "porcentaje",
+        "valor": Decimal("1.00"),
+        "vence": date(2099, 12, 31),
+    },
 }
 
 ENVIOS = {
@@ -34,22 +46,39 @@ ENVIOS = {
 def validar_item(item):
     producto = item["producto"]
     if not isinstance(producto, str) or producto not in CATALOGO:
-        raise CheckoutError("PRODUCTO_INEXISTENTE", f"Producto inexistente: {producto!r}")
+        raise CheckoutError(
+            "PRODUCTO_INEXISTENTE",
+            f"Producto inexistente: {producto!r}",
+        )
 
     talle = item["talle"]
     if not isinstance(talle, str) or talle.strip().upper() not in TALLES:
-        raise CheckoutError("TALLE_INVALIDO", f"Talle inválido: {talle!r}")
+        raise CheckoutError(
+            "TALLE_INVALIDO",
+            f"Talle inválido: {talle!r}",
+        )
 
     cantidad = item["cantidad"]
-    if isinstance(cantidad, bool) or not isinstance(cantidad, int) or not (1 <= cantidad <= 10):
-        raise CheckoutError("CANTIDAD_INVALIDA", "La cantidad debe ser un entero entre 1 y 10")
+    if (
+        isinstance(cantidad, bool)
+        or not isinstance(cantidad, int)
+        or not (1 <= cantidad <= 10)
+    ):
+        raise CheckoutError(
+            "CANTIDAD_INVALIDA",
+            "La cantidad debe ser un entero entre 1 y 10",
+        )
 
 
 def calcular_subtotal(carrito):
     if not isinstance(carrito, (list, tuple)) or len(carrito) == 0:
-        raise CheckoutError("CARRITO_VACIO", "El carrito no tiene ítems")
+        raise CheckoutError(
+            "CARRITO_VACIO",
+            "El carrito no tiene ítems",
+        )
 
     subtotal = Decimal("0")
+
     for item in carrito:
         validar_item(item)
         subtotal += CATALOGO[item["producto"]] * item["cantidad"]
@@ -57,23 +86,35 @@ def calcular_subtotal(carrito):
     return subtotal
 
 
-def calcular_descuento(subtotal, cantidad_prendas, cupon=None, fecha=date.today()):
-    descuento = 0
+def calcular_descuento(
+    subtotal,
+    cantidad_prendas,
+    cupon=None,
+    fecha=date.today(),
+):
+    descuento = Decimal("0")
 
-    if cantidad_prendas > 5:
+    if cantidad_prendas >= 5:
         descuento += subtotal * Decimal("0.10")
 
-    if cupon != None:
+    if cupon is not None:
         codigo = cupon.strip()
 
         if codigo not in CUPONES:
-            raise CheckoutError("CUPON_INVALIDO", "El cupón no existe")
+            raise CheckoutError(
+                "CUPON_INVALIDO",
+                "El cupón no existe",
+            )
 
         datos = CUPONES[codigo]
 
         if datos["tipo"] == "porcentaje":
             if not fecha < datos["vence"]:
-                raise CheckoutError("CUPON_VENCIDO", "El cupón está vencido")
+                raise CheckoutError(
+                    "CUPON_VENCIDO",
+                    "El cupón está vencido",
+                )
+
             descuento += subtotal * datos["valor"]
 
         elif datos["tipo"] == "fijo":
@@ -82,9 +123,13 @@ def calcular_descuento(subtotal, cantidad_prendas, cupon=None, fecha=date.today(
                     "CUPON_MINIMO_NO_ALCANZADO",
                     f"El cupón requiere una compra mínima de ${datos['minimo']}",
                 )
+
             descuento += datos["valor"]
 
-    return round(descuento, 2)
+    return descuento.quantize(
+        Decimal("0.01"),
+        rounding=ROUND_HALF_UP,
+    )
 
 
 def calcular_envio(subtotal, zona):
@@ -102,15 +147,27 @@ def calcular_envio(subtotal, zona):
     return ENVIOS[zona]
 
 
-def calcular_total(carrito, zona, cupon=None, fecha=date.today()):
+def calcular_total(
+    carrito,
+    zona,
+    cupon=None,
+    fecha=date.today(),
+):
     subtotal = calcular_subtotal(carrito)
 
     prendas = 0
     for item in carrito:
         prendas = prendas + item["cantidad"]
 
-    descuento = calcular_descuento(subtotal, prendas, cupon, fecha)
+    descuento = calcular_descuento(
+        subtotal,
+        prendas,
+        cupon,
+        fecha,
+    )
+
     envio = calcular_envio(subtotal, zona)
+
     total = subtotal - descuento + envio
 
     resultado = {
@@ -119,4 +176,5 @@ def calcular_total(carrito, zona, cupon=None, fecha=date.today()):
         "envio": envio,
         "total": round(total, 2),
     }
+
     return resultado
