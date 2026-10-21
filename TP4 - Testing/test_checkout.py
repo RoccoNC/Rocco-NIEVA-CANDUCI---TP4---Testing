@@ -1,3 +1,4 @@
+import copy
 from datetime import date
 from decimal import Decimal
 
@@ -187,3 +188,138 @@ def test_se_informa_primero_el_item_con_error_de_cantidad_aunque_el_segundo_tamb
     carrito = [item("buzo", cantidad=0), item("zapatillas")]
 
     assert codigo_de_error(calcular_subtotal, carrito) == "CANTIDAD_INVALIDA"
+
+
+# ---------------------------------------------------------------------------
+# R4 — Carrito
+# ---------------------------------------------------------------------------
+
+
+def test_carrito_con_un_solo_item_es_valido():
+    assert calcular_subtotal([item("buzo")]) == Decimal("24999.90")
+
+
+def test_carrito_con_productos_distintos_suma_los_subtotales():
+    carrito = [item("buzo"), item("remera")]
+
+    assert calcular_subtotal(carrito) == Decimal("36999.40")
+
+
+def test_carrito_con_el_mismo_producto_en_dos_talles_suma_las_cantidades():
+    carrito = [item("buzo", talle="M", cantidad=1), item("buzo", talle="L", cantidad=2)]
+
+    assert calcular_subtotal(carrito) == Decimal("74999.70")
+
+
+def test_el_limite_de_10_es_por_item_y_no_por_carrito():
+    carrito = [item("buzo", cantidad=10), item("remera", cantidad=10)]
+
+    assert calcular_subtotal(carrito) == Decimal("369994.00")
+
+
+def test_carrito_vacio_en_calcular_subtotal_es_carrito_vacio():
+    assert codigo_de_error(calcular_subtotal, []) == "CARRITO_VACIO"
+
+
+def test_carrito_vacio_en_calcular_total_es_carrito_vacio():
+    assert codigo_de_error(calcular_total, [], "CABA") == "CARRITO_VACIO"
+
+
+def test_carrito_que_no_es_una_lista_lanza_checkout_error():
+    with pytest.raises(CheckoutError):
+        calcular_total(None, "CABA")
+
+
+def test_validar_item_no_modifica_el_item_que_recibe():
+    original = item(talle=" m ")
+    copia = copy.deepcopy(original)
+
+    validar_item(original)
+
+    assert original == copia
+
+
+def test_calcular_subtotal_no_modifica_el_carrito():
+    carrito = [item("buzo", talle=" m ", cantidad=2)]
+    copia = copy.deepcopy(carrito)
+
+    calcular_subtotal(carrito)
+
+    assert carrito == copia
+
+
+def test_calcular_total_no_modifica_el_carrito():
+    carrito = [item("buzo", talle=" m ", cantidad=2)]
+    copia = copy.deepcopy(carrito)
+
+    calcular_total(carrito, "CABA")
+
+    assert carrito == copia
+
+
+def test_calcular_total_con_cupon_no_modifica_el_carrito():
+    carrito = [item("buzo", talle=" m "), item("remera", talle="xl")]
+    copia = copy.deepcopy(carrito)
+
+    calcular_total(carrito, "CABA", "EGRESADOS2026", HOY_VIGENTE)
+
+    assert carrito == copia
+
+
+def test_calcular_subtotal_conserva_las_claves_extra_del_item():
+    carrito = [item("buzo", talle="m", precio=1, color="rojo")]
+    copia = copy.deepcopy(carrito)
+
+    calcular_subtotal(carrito)
+
+    assert carrito == copia
+
+
+def test_calcular_total_conserva_el_largo_y_el_orden_del_carrito():
+    carrito = [item("campera", talle="s"), item("buzo", talle="m"), item("remera", talle="l")]
+    copia = copy.deepcopy(carrito)
+
+    calcular_total(carrito, "CABA")
+
+    assert carrito == copia
+
+
+def test_un_talle_invalido_no_modifica_el_item():
+    original = item(talle=" xxxl ")
+    copia = copy.deepcopy(original)
+
+    codigo_de_error(validar_item, original)
+
+    assert original == copia
+
+
+def test_un_error_en_el_segundo_item_no_deja_modificado_al_primero():
+    carrito = [item("buzo", talle="m"), item("zapatillas", talle="m")]
+    copia = copy.deepcopy(carrito)
+
+    codigo_de_error(calcular_subtotal, carrito)
+
+    assert carrito == copia
+
+
+def test_un_cupon_invalido_no_modifica_el_carrito():
+    carrito = [item("buzo", talle=" m ")]
+    copia = copy.deepcopy(carrito)
+
+    codigo_de_error(calcular_total, carrito, "CABA", "NOEXISTE", HOY_VIGENTE)
+
+    assert carrito == copia
+
+
+def test_el_carrito_vacio_se_informa_antes_que_una_zona_invalida():
+    assert codigo_de_error(calcular_total, [], "MARTE") == "CARRITO_VACIO"
+
+
+def test_el_carrito_vacio_se_informa_antes_que_un_cupon_invalido():
+    assert codigo_de_error(calcular_total, [], "CABA", "NOEXISTE") == "CARRITO_VACIO"
+
+
+def test_el_item_invalido_se_informa_antes_que_el_cupon_y_la_zona():
+    carrito = [item("zapatillas")]
+
+    assert codigo_de_error(calcular_total, carrito, "MARTE", "NOEXISTE") == "PRODUCTO_INEXISTENTE"
